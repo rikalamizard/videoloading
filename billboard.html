@@ -26,18 +26,36 @@
     var currentNum = 1;
     var baseUrl = "https://rikalamizard.github.io/videoloading/video";
     var vid = document.getElementById("vid");
+    var switchTimer = null;
+    var FALLBACK_MS = 15000; // kalau durasi video ga kebaca, paksa ganti setelah 15 detik
+
+    function clearSwitchTimer() {
+      if (switchTimer) {
+        clearTimeout(switchTimer);
+        switchTimer = null;
+      }
+    }
+
+    function scheduleNext(ms) {
+      clearSwitchTimer();
+      switchTimer = setTimeout(nextVideo, ms);
+    }
 
     function playVideo(num) {
       currentNum = num;
+      clearSwitchTimer();
+
       vid.src = baseUrl + num + ".mp4";
       vid.load();
+
       var playPromise = vid.play();
       if (playPromise !== undefined) {
         playPromise.catch(function () {
-          // Autoplay diblokir atau gagal -> lanjut ke video berikutnya, jangan stuck
-          nextVideo();
+          scheduleNext(1000);
         });
       }
+
+      scheduleNext(FALLBACK_MS);
     }
 
     function nextVideo() {
@@ -48,9 +66,19 @@
       playVideo(num);
     }
 
-    vid.addEventListener("ended", nextVideo);
-    // Kalau file error/404/corrupt -> skip, jangan berhenti total
-    vid.addEventListener("error", nextVideo);
+    vid.addEventListener("loadedmetadata", function () {
+      if (vid.duration && isFinite(vid.duration) && vid.duration > 0) {
+        scheduleNext((vid.duration * 1000) + 300);
+      }
+    });
+
+    vid.addEventListener("ended", function () {
+      nextVideo();
+    });
+
+    vid.addEventListener("error", function () {
+      scheduleNext(500);
+    });
 
     playVideo(1);
   </script>
